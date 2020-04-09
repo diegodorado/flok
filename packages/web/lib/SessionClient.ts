@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import { WebrtcProvider } from "./y-webrtc";
+import MediasoupClient from "./MediasoupClient";
 import { CodeMirrorBinding } from "./y-codemirror";
 import CodeMirror from "codemirror";
 
@@ -13,6 +14,7 @@ export type IceServerType = {
 
 type SessionClientContext = {
   signalingServerUrl: string;
+  mediasoupServerUrl: string;
   extraIceServers?: IceServerType[];
   sessionName?: string;
   sessionPassword?: string;
@@ -25,6 +27,7 @@ class SessionClient {
   sessionName: string;
   sessionPassword: string;
   signalingServerUrl: string;
+  mediasoupServerUrl: string;
   extraIceServers: IceServerType[];
   onJoin: Function;
 
@@ -33,6 +36,7 @@ class SessionClient {
   _editorBindings: {
     [editorId: string]: CodeMirrorBinding;
   };
+  _mediasoupClient: any;
 
   /**
    * @constructor
@@ -47,6 +51,7 @@ class SessionClient {
   constructor(ctx: SessionClientContext) {
     const {
       signalingServerUrl,
+      mediasoupServerUrl,
       extraIceServers,
       sessionName,
       sessionPassword,
@@ -55,6 +60,7 @@ class SessionClient {
     } = ctx;
 
     this.signalingServerUrl = signalingServerUrl;
+    this.mediasoupServerUrl = mediasoupServerUrl;
     this.extraIceServers = extraIceServers || [];
     this.userName = userName;
     this.sessionName = sessionName || "default";
@@ -69,6 +75,7 @@ class SessionClient {
   join() {
     const {
       signalingServerUrl,
+      mediasoupServerUrl,
       extraIceServers,
       sessionName,
       sessionPassword
@@ -80,6 +87,7 @@ class SessionClient {
       extraIceServers
     });
     this._provider = provider;
+    this._mediasoupClient = new MediasoupClient(mediasoupServerUrl);
     this.onJoin();
   }
 
@@ -127,6 +135,18 @@ class SessionClient {
       this._provider.awareness.setLocalStateField("user", { name: newName });
     }
   }
+
+  createAudioProducer = async () => {
+    const producer = await this._mediasoupClient.createProducer()
+    return producer
+  }
+
+  consumeAudioStream = async () => {
+    const stream = await this._mediasoupClient.consumeStream()
+    return stream
+  }
+
+  isAudioProducer = () => this._mediasoupClient.isProducer
 
   flash(editorId: string, fromLine: number, toLine: number) {
     const editorBinding = this._editorBindings[editorId];

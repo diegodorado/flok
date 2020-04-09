@@ -5,6 +5,7 @@ import TargetMessagesPane, { Message } from "./TargetMessagesPane";
 import SessionClient, { IceServerType } from "../lib/SessionClient";
 import HydraCanvas from "./HydraCanvas";
 import Mosaic from "./Mosaic";
+import Audio from "./Audio";
 
 const MAX_LINES: number = 100;
 
@@ -26,6 +27,8 @@ type Props = {
 type State = {
   showTargetMessagesPane: boolean;
   showTextEditors: boolean;
+  showAudio: boolean;
+  audioProducerId: string;
   messagesByClientId: { [clientId: string]: Message[] };
   messagesPaneIsTop: boolean;
   messagesPaneIsMaximized: boolean;
@@ -36,6 +39,8 @@ class Session extends Component<Props, State> {
   state: State = {
     showTargetMessagesPane: false,
     showTextEditors: false,
+    showAudio: false,
+    audioProducerId: "",
     messagesByClientId: {},
     messagesPaneIsTop: false,
     messagesPaneIsMaximized: false,
@@ -62,14 +67,19 @@ class Session extends Component<Props, State> {
     const pubsubUrl: string = `${wsUrl}/pubsub`;
     console.log(`Pub/Sub server URL: ${pubsubUrl}`);
 
+    const mediasoupServerUrl: string = `${wsUrl}/ms`;
+    console.log(`Mediasoup server URL: ${mediasoupServerUrl}`);
+
     this.sessionClient = new SessionClient({
       signalingServerUrl,
+      mediasoupServerUrl,
       extraIceServers,
       sessionName,
       userName,
       onJoin: () => {
         this.sessionClient.setUsername(userName);
         this.setState({ showTextEditors: true });
+        this.setState({ showAudio: true });
       }
     });
     this.sessionClient.join();
@@ -78,6 +88,13 @@ class Session extends Component<Props, State> {
       connect: true,
       reconnect: true
     });
+
+    // Subscribes to new audio producer event
+    this.pubsubClient.subscribe(
+      `session:${sessionName}:audio:new_producer`,
+      this.handleNewAudioProducer
+    );
+    this.sessionClient._mediasoupClient.onGotProducerId = this.handleNewAudioProducer
 
     // Subscribes to messages directed to ourselves
     this.pubsubClient.subscribe(
@@ -227,6 +244,26 @@ class Session extends Component<Props, State> {
     }));
   };
 
+  handleAudioProduceRequest = (message) => {
+    console.log(message)
+  }
+
+  handleNewAudioProducer = (id) => {
+    this.setState({audioProducerId: id})
+  }
+
+  handleOnProduceRequest = async () => {
+    const {userName, sessionName} = this.props
+    const producer = await this.sessionClient.createAudioProducer()
+    this.pubsubClient.publish(`session:${sessionName}:audio:new_producer`, producer._id)
+    return producer
+  };
+
+  handleOnConsumeRequest = async () => {
+    const stream = await this.sessionClient.consumeAudioStream()
+    return stream
+  };
+
   handleTargetMessagesPaneClose = () => {
     this.setState({ showTargetMessagesPane: false });
   };
@@ -235,6 +272,8 @@ class Session extends Component<Props, State> {
     const {
       messagesByClientId,
       showTextEditors,
+      showAudio,
+      audioProducerId,
       showTargetMessagesPane,
       messagesPaneIsTop,
       messagesPaneIsMaximized,
@@ -263,6 +302,14 @@ class Session extends Component<Props, State> {
             onTogglePosition={this.handleTargetMessagesPaneTogglePosition}
             onToggleMaximize={this.handleTargetMessagesPaneToggleMaximize}
             onClose={this.handleTargetMessagesPaneClose}
+          />
+        )}
+        {showAudio && (
+          <Audio 
+            sessionClient={sessionClient}
+            producerId={audioProducerId}
+            onProduceRequest={this.handleOnProduceRequest}
+            onConsumeRequest={this.handleOnConsumeRequest}
           />
         )}
       </div>
