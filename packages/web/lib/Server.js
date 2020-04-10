@@ -2,13 +2,13 @@
 /* eslint-disable global-require */
 const express = require("express");
 const next = require("next");
-const http = require("http");
 const url = require("url");
 const path = require("path");
 const WebSocket = require("ws");
 const map = require("lib0/dist/map.cjs");
 const { PubSub } = require("flok-core");
 const process = require("process");
+const configureSsl = require("./configureSsl");
 const sslRedirect = require("./sslRedirect");
 const mediasoup = require('mediasoup');
 
@@ -76,7 +76,8 @@ class Server {
       const wss = new WebSocket.Server({ noServer: true });
       const pubsubWss = new WebSocket.Server({ noServer: true });
       const msWss = new WebSocket.Server({ noServer: true });
-      const server = http.createServer(app);
+      //const server = http.createServer(app);
+      const server = configureSsl(app);
       
       (async () => {
         try {
